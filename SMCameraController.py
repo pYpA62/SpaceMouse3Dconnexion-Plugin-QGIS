@@ -60,95 +60,17 @@ class CameraController:
         """
         return start + alpha * (end - start)
 
-    def update_camera(self, filtered_values: Dict[str, float]) -> None:
-        """
-        Update camera position and rotation using filtered values with interpolation
-        
-        Args:
-            filtered_values: Dictionary containing filtered movement values
-                        (x, y, z, roll, pitch, yaw)
-        """
-        if not self.navigation:
-            self.navigation = self._get_navigation_widget()
-            if not self.navigation:
-                return
-
-        try:
-            # Interpoler les valeurs pour des mouvements plus fluides
-            self._current_values['x'] = self._lerp(self._current_values['x'], filtered_values['x'], self._lerp_factor)
-            self._current_values['y'] = self._lerp(self._current_values['y'], filtered_values['y'], self._lerp_factor)
-            self._current_values['z'] = self._lerp(self._current_values['z'], filtered_values['z'], self._lerp_factor)
-            self._current_values['pitch'] = self._lerp(self._current_values['pitch'], filtered_values['pitch'], self._lerp_factor)
-            self._current_values['yaw'] = self._lerp(self._current_values['yaw'], filtered_values['yaw'], self._lerp_factor)
-            
-            # Move view (translation) with interpolated values
-            self.navigation.moveView(
-                -self._current_values['x'] * self._move_factor,
-                -self._current_values['y'] * self._move_factor
-            )
-
-            # Update rotation using camera pose
-            if camera_pose := self.navigation.cameraPose():
-                # Update heading (yaw) with interpolated value
-                camera_pose.setHeadingAngle(
-                    camera_pose.headingAngle() + 
-                    self._current_values['yaw'] * self._rotation_factor
-                )
-                # Apply updated pose immediately
-                self.navigation.setCameraPose(camera_pose)
-            
-                # Get fresh camera pose
-                camera_pose = self.navigation.cameraPose()
-                
-                # Get current pitch angle
-                current_pitch = camera_pose.pitchAngle()
-                
-                # Calculate new pitch angle with interpolated value
-                new_pitch = current_pitch + self._current_values['pitch'] * self._rotation_factor
-                
-                # Limit pitch to avoid gimbal lock (-89 to 89 degrees)
-                new_pitch = max(-89.0, min(89.0, new_pitch))
-                
-                # Update pitch
-                camera_pose.setPitchAngle(new_pitch)
-                
-                # Apply updated pose
-                self.navigation.setCameraPose(camera_pose)
-
-            # Handle zoom with interpolated value
-            if abs(self._current_values['z']) > self._z_threshold:
-                zoom_value = self._current_values['z'] * self._zoom_factor
-                self.navigation.zoom(zoom_value)
-
-        except Exception as e:
-            QgsMessageLog.logMessage(
-                f"Error updating camera: {str(e)}", 
-                "SpaceMouse", 
-                Qgis.Critical
-            )
-            
     def process_input_values(self, x: float, y: float, z: float,
-                             roll: float, pitch: float, yaw: float) -> Optional[Dict[str, float]]:
+                            roll: float, pitch: float, yaw: float) -> Optional[Dict[str, float]]:
         """
         Process and filter input values.
-
-        Args:
-            x: X-axis movement value.
-            y: Y-axis movement value.
-            z: Z-axis movement value.
-            roll: Roll rotation value.
-            pitch: Pitch rotation value.
-            yaw: Yaw rotation value.
-
-        Returns:
-            Optional[Dict[str, float]]: Filtered values or None if all values are below the threshold.
         """
         try:
             # Validate input values
             if not all(isinstance(v, (int, float)) for v in [x, y, z, roll, pitch, yaw]):
                 raise ValueError("Invalid input types")
 
-            values = np.array([x, y, z, yaw, pitch, roll], dtype=np.float32)
+            values = np.array([x, y, z, yaw, roll, pitch], dtype=np.float32) # ici inversion roll et pitch
             thresholds = self._get_threshold_array()
 
             # Check for NaN or infinite values
@@ -167,8 +89,8 @@ class CameraController:
                 'x': float(values[0]),
                 'y': float(values[1]),
                 'z': float(values[2]),
-                'yaw': float(values[3]),
-                'pitch': float(values[4]),
+                'yaw': float(values[3]),  # Ensure yaw is correctly mapped
+                'pitch': float(values[4]),  # Ensure pitch is correctly mapped
                 'roll': float(values[5])
             }
 
@@ -177,6 +99,53 @@ class CameraController:
         except Exception as e:
             QgsMessageLog.logMessage(f"Error in input processing: {str(e)}", "SpaceMouse", Qgis.Critical)
             return None
+
+    def update_camera(self, filtered_values: Dict[str, float]) -> None:
+        """
+        Update camera position and rotation using filtered values with interpolation.
+        """
+        if not self.navigation:
+            self.navigation = self._get_navigation_widget()
+            if not self.navigation:
+                return
+
+        try:
+            # Interpolate values for smoother movements
+            for key in ['x', 'y', 'z', 'pitch', 'yaw']:
+                self._current_values[key] = self._lerp(self._current_values[key], filtered_values[key], self._lerp_factor)
+
+            # Move view (translation) with interpolated values
+            self.navigation.moveView(
+                -self._current_values['x'] * self._move_factor,
+                -self._current_values['y'] * self._move_factor
+            )
+
+            # Update rotation using camera pose
+            camera_pose = self.navigation.cameraPose()
+            if camera_pose:
+                # Update heading (yaw) with interpolated value
+                new_heading = camera_pose.headingAngle() + self._current_values['yaw'] * self._rotation_factor
+                camera_pose.setHeadingAngle(new_heading)
+                
+                # Calculate new pitch angle with interpolated value
+                new_pitch = camera_pose.pitchAngle() + self._current_values['pitch'] * self._rotation_factor
+                new_pitch = max(-89.0, min(89.0, new_pitch))  # Limit pitch to avoid gimbal lock
+                camera_pose.setPitchAngle(new_pitch)
+
+                # Apply updated pose
+                self.navigation.setCameraPose(camera_pose)
+
+            # Handle zoom with interpolated value
+            if abs(self._current_values['z']) > self._z_threshold:
+                zoom_value = self._current_values['z'] * self._zoom_factor
+                self.navigation.zoom(zoom_value)
+
+        except Exception as e:
+            QgsMessageLog.logMessage(
+                f"Error updating camera: {str(e)}", 
+                "SpaceMouse", 
+                Qgis.Critical
+            )
 
     def _get_threshold_array(self) -> np.ndarray:
         """
