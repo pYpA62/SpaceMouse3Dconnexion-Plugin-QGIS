@@ -435,7 +435,7 @@ def open(callback=None, dof_callback=None, dof_callback_arr=None,
                         raise
             
             # Configurer le périphérique
-            dev.set_nonblocking(1 if set_nonblocking_loop else 0)
+            dev.set_nonblocking(bool(set_nonblocking_loop))
             
             # Initialiser l'état
             _device = dev

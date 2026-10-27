@@ -1,9 +1,9 @@
 #♦ SMSettings.py
 
-from PyQt5.QtWidgets import (QDockWidget, QWidget, QVBoxLayout, QHBoxLayout,
+from qgis.PyQt.QtWidgets import (QDockWidget, QWidget, QVBoxLayout, QHBoxLayout,
                             QPushButton, QFormLayout, QGroupBox, QDoubleSpinBox,
                             QMessageBox, QFileDialog, QComboBox,QLabel)
-from PyQt5.QtCore import Qt, QSettings, pyqtSignal  
+from qgis.PyQt.QtCore import Qt, QSettings, pyqtSignal  
 from dataclasses import dataclass, field
 from qgis.core import QgsMessageLog, Qgis
 from typing import Dict, Tuple, List
@@ -193,10 +193,10 @@ class SettingsDock(QDockWidget):
     
     def __init__(self, parent=None):
         super().__init__("SpaceMouse Settings", parent)
-        self.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        self.setFeatures(QDockWidget.DockWidgetFloatable | 
-                        QDockWidget.DockWidgetMovable | 
-                        QDockWidget.DockWidgetClosable)
+        self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
+        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetFloatable | 
+                        QDockWidget.DockWidgetFeature.DockWidgetMovable | 
+                        QDockWidget.DockWidgetFeature.DockWidgetClosable)
         
         # Initialize main widget and storage
         self.settings_widget = QWidget()
@@ -282,7 +282,7 @@ class SettingsDock(QDockWidget):
             QgsMessageLog.logMessage(
                 f"Error scanning for devices: {str(e)}", 
                 SettingsConfig.PLUGIN_NAME, 
-                Qgis.Critical
+                Qgis.MessageLevel.Critical
             )
             return {}
 
@@ -355,7 +355,7 @@ class SettingsDock(QDockWidget):
             QgsMessageLog.logMessage(
                 f"Error updating settings values: {str(e)}", 
                 SettingsConfig.PLUGIN_NAME, 
-                Qgis.Critical
+                Qgis.MessageLevel.Critical
             )
 
     def _apply_settings(self) -> None:
@@ -388,7 +388,7 @@ class SettingsDock(QDockWidget):
             QgsMessageLog.logMessage(
                 f"Error applying settings:\n{error_trace}", 
                 SettingsConfig.PLUGIN_NAME, 
-                Qgis.Critical
+                Qgis.MessageLevel.Critical
             )
         finally:
             settings.endGroup()
@@ -422,7 +422,7 @@ class SettingsDock(QDockWidget):
             QgsMessageLog.logMessage(
                 f"Error loading settings: {str(e)}", 
                 SettingsConfig.PLUGIN_NAME, 
-                Qgis.Critical
+                Qgis.MessageLevel.Critical
             )
         finally:
             settings.endGroup()
@@ -433,11 +433,11 @@ class SettingsDock(QDockWidget):
             self,
             "Reset Settings",
             "Are you sure you want to reset all settings to their default values?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
         )
         
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             for key, (default, *_) in SettingsConfig.DEFAULTS.items():
                 self._spinboxes[key].setValue(default)
             # Apply the default settings

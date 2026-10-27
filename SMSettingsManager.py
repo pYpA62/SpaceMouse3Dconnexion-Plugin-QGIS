@@ -3,8 +3,8 @@ from typing import Dict, Any, Optional
 from contextlib import contextmanager
 import json
 
-from PyQt5.QtCore import QSettings
-from PyQt5.QtWidgets import QFileDialog, QDoubleSpinBox
+from qgis.PyQt.QtCore import QSettings
+from qgis.PyQt.QtWidgets import QFileDialog, QDoubleSpinBox
 from qgis.core import QgsMessageLog, Qgis
 
 from .SMSettings import SMSettings
@@ -31,7 +31,7 @@ class SettingsFileManager:
             QgsMessageLog.logMessage(
                 f"Error getting save path: {str(e)}", 
                 "SpaceMouse", 
-                Qgis.Warning
+                Qgis.MessageLevel.Warning
             )
             return None
 
@@ -50,7 +50,7 @@ class SettingsFileManager:
             QgsMessageLog.logMessage(
                 f"Error getting load path: {str(e)}", 
                 "SpaceMouse", 
-                Qgis.Warning
+                Qgis.MessageLevel.Warning
             )
             return None
 
@@ -106,7 +106,7 @@ class SettingsManager:
             QgsMessageLog.logMessage(
                 f"Error loading settings: {str(e)}", 
                 "SpaceMouse", 
-                Qgis.Warning
+                Qgis.MessageLevel.Warning
             )
             self._load_defaults(spinboxes)
 
@@ -124,7 +124,7 @@ class SettingsManager:
             QgsMessageLog.logMessage(
                 f"Error saving settings: {str(e)}", 
                 "SpaceMouse", 
-                Qgis.Warning
+                Qgis.MessageLevel.Warning
             )
         return current_settings
 

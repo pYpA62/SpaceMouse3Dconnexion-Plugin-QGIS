@@ -1,0 +1,4 @@
+*.pyc
+__pycache__/
+pyqt6_checker.log
+pyqt5_to_pyqt6.py

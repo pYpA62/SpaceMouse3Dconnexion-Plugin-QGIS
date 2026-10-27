@@ -1,6 +1,6 @@
 from typing import Dict, Optional
 from qgis.core import QgsMessageLog, Qgis
-from PyQt5.QtCore import Qt
+from qgis.PyQt.QtCore import Qt
 import numpy as np
 
 class CameraController:
@@ -42,7 +42,7 @@ class CameraController:
             QgsMessageLog.logMessage(
                 f"Error getting navigation widget: {str(e)}", 
                 "SpaceMouse", 
-                Qgis.Critical
+                Qgis.MessageLevel.Critical
             )
             return None
         
@@ -75,7 +75,7 @@ class CameraController:
 
             # Check for NaN or infinite values
             if not np.all(np.isfinite(values)):
-                QgsMessageLog.logMessage("Invalid input values detected", "SpaceMouse", Qgis.Warning)
+                QgsMessageLog.logMessage("Invalid input values detected", "SpaceMouse", Qgis.MessageLevel.Warning)
                 return None
 
             # Apply thresholds
@@ -97,7 +97,7 @@ class CameraController:
             return input_values
 
         except Exception as e:
-            QgsMessageLog.logMessage(f"Error in input processing: {str(e)}", "SpaceMouse", Qgis.Critical)
+            QgsMessageLog.logMessage(f"Error in input processing: {str(e)}", "SpaceMouse", Qgis.MessageLevel.Critical)
             return None
 
     def update_camera(self, filtered_values: Dict[str, float]) -> None:
@@ -144,7 +144,7 @@ class CameraController:
             QgsMessageLog.logMessage(
                 f"Error updating camera: {str(e)}", 
                 "SpaceMouse", 
-                Qgis.Critical
+                Qgis.MessageLevel.Critical
             )
 
     def _get_threshold_array(self) -> np.ndarray:
