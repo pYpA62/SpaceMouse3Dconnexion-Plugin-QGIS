@@ -144,6 +144,23 @@
     ],
     "axis_scale": 350.0
   },
+  "SpaceMouse Wireless Receiver": {
+    "name": "SpaceMouse Wireless Receiver",
+    "hid_id": [9583, 50735],
+    "mappings": {
+      "x": [1, 1, 2, 1],
+      "y": [1, 3, 4, -1],
+      "z": [1, 5, 6, -1],
+      "roll": [1, 7, 8, -1],
+      "pitch": [1, 9, 10, -1],
+      "yaw": [1, 11, 12, 1]
+    },
+    "button_mapping": [
+      [3, 1, 0],
+      [3, 1, 1]
+    ],
+    "axis_scale": 350.0
+  },
   "3Dconnexion Universal Receiver": {
     "name": "3Dconnexion Universal Receiver",
     "hid_id": [9583, 50770],

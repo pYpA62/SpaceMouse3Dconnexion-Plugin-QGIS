@@ -5,12 +5,12 @@ import json
 import logging
 from typing import Dict, List, Tuple, Any, Optional
 
-from PyQt5.QtWidgets import (
+from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox,
     QSpinBox, QDoubleSpinBox, QComboBox
 )
-from PyQt5.QtCore import Qt
+from qgis.PyQt.QtCore import Qt
 from qgis.core import Qgis
 
 # Configuration du logging
@@ -197,7 +197,7 @@ class AddDeviceDialog(QDialog):
         self.axis_mappings_table = QTableWidget(6, 4)
         self.axis_mappings_table.setHorizontalHeaderLabels(["Canal", "Byte1", "Byte2", "Échelle"])
         self.axis_mappings_table.setVerticalHeaderLabels(["x", "y", "z", "roll", "pitch", "yaw"])
-        self.axis_mappings_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.axis_mappings_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         
         # Initialiser les valeurs par défaut pour les mappings des axes
         default_mappings = [
@@ -217,7 +217,7 @@ class AddDeviceDialog(QDialog):
         # Tableau pour les mappings des boutons
         self.button_mappings_table = QTableWidget(2, 3)
         self.button_mappings_table.setHorizontalHeaderLabels(["Canal", "Byte", "Bit"])
-        self.button_mappings_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.button_mappings_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         
         # Initialiser les valeurs par défaut pour les mappings des boutons
         default_button_mappings = [
@@ -476,7 +476,7 @@ class ManageDevicesDialog(QDialog):
     def add_device(self):
         """Ouvre la boîte de dialogue d'ajout de périphérique"""
         dialog = AddDeviceDialog(self)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             self.refresh_devices()
     
     def edit_device(self):
@@ -487,7 +487,7 @@ class ManageDevicesDialog(QDialog):
             return
         
         dialog = AddDeviceDialog(self, device_name)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             self.refresh_devices()
     
     def delete_device(self):
@@ -500,10 +500,10 @@ class ManageDevicesDialog(QDialog):
         reply = QMessageBox.question(
             self, "Confirmation",
             f"Êtes-vous sûr de vouloir supprimer le périphérique {device_name} ?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
         )
         
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             success = delete_device(device_name)
             
             if success:

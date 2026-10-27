@@ -61,7 +61,7 @@ class Config:
     THREAD_FORCE_KILL_TIMEOUT: int = 3000  # Timeout before force killing thread
     
     # Logging
-    LOG_LEVEL: int = Qgis.Warning
+    LOG_LEVEL: int = Qgis.MessageLevel.Warning
     LOG_TO_FILE: bool = False  # Option to log to file
     LOG_FILE_PATH: str = ""  # Path for log file if LOG_TO_FILE is True
     

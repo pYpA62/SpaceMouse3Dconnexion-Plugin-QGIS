@@ -1,12 +1,12 @@
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from qgis.core import QgsMessageLog, Qgis
-from PyQt5.QtCore import Qt
+from qgis.PyQt.QtCore import Qt
 import numpy as np
 
 class CameraController:
     """Controls camera movement and rotation in 3D view"""
     
-    def __init__(self, canvas_3d, settings: Dict[str, float], thresholds: Dict[str, float]):
+    def __init__(self, canvas_3d, settings: Dict[str, Any], thresholds: Dict[str, float]):
         """
         Initialize camera controller
         
@@ -22,6 +22,7 @@ class CameraController:
         self._move_factor = settings['move_factor']
         self._rotation_factor = settings['rotation_factor']
         self._zoom_factor = settings['zoom_factor']
+        self._reverse_zoom_direction = settings.get('reverse_zoom_direction', False)
         self._z_threshold = thresholds['z']
         self.navigation = self._get_navigation_widget()
         # Paramètres d'interpolation
@@ -42,7 +43,7 @@ class CameraController:
             QgsMessageLog.logMessage(
                 f"Error getting navigation widget: {str(e)}", 
                 "SpaceMouse", 
-                Qgis.Critical
+                Qgis.MessageLevel.Critical
             )
             return None
         
@@ -75,7 +76,7 @@ class CameraController:
 
             # Check for NaN or infinite values
             if not np.all(np.isfinite(values)):
-                QgsMessageLog.logMessage("Invalid input values detected", "SpaceMouse", Qgis.Warning)
+                QgsMessageLog.logMessage("Invalid input values detected", "SpaceMouse", Qgis.MessageLevel.Warning)
                 return None
 
             # Apply thresholds
@@ -97,7 +98,7 @@ class CameraController:
             return input_values
 
         except Exception as e:
-            QgsMessageLog.logMessage(f"Error in input processing: {str(e)}", "SpaceMouse", Qgis.Critical)
+            QgsMessageLog.logMessage(f"Error in input processing: {str(e)}", "SpaceMouse", Qgis.MessageLevel.Critical)
             return None
 
     def update_camera(self, filtered_values: Dict[str, float]) -> None:
@@ -137,14 +138,15 @@ class CameraController:
 
             # Handle zoom with interpolated value
             if abs(self._current_values['z']) > self._z_threshold:
-                zoom_value = self._current_values['z'] * self._zoom_factor
+                zoom_direction = 1 if self._reverse_zoom_direction else -1
+                zoom_value = self._current_values['z'] * self._zoom_factor * zoom_direction
                 self.navigation.zoom(zoom_value)
 
         except Exception as e:
             QgsMessageLog.logMessage(
                 f"Error updating camera: {str(e)}", 
                 "SpaceMouse", 
-                Qgis.Critical
+                Qgis.MessageLevel.Critical
             )
 
     def _get_threshold_array(self) -> np.ndarray:
@@ -163,7 +165,7 @@ class CameraController:
             self.thresholds['rotation']
         ], dtype=np.float32)
         
-    def update_settings(self, new_settings: Dict[str, float]) -> None:
+    def update_settings(self, new_settings: Dict[str, Any]) -> None:
         """
         Update controller settings
         
@@ -179,3 +181,5 @@ class CameraController:
             self._rotation_factor = new_settings['rotation_factor']
         if 'zoom_factor' in new_settings:
             self._zoom_factor = new_settings['zoom_factor']
+        if 'reverse_zoom_direction' in new_settings:
+            self._reverse_zoom_direction = new_settings['reverse_zoom_direction']

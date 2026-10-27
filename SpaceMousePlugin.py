@@ -4,17 +4,17 @@ import os
 import sys
 import time
 import weakref
-import sip
 from typing import Optional, Dict, List, Any
 from functools import lru_cache
 
-# PyQt5 imports
-from PyQt5.QtWidgets import (
+# Qt imports
+from qgis.PyQt import sip
+from qgis.PyQt.QtWidgets import (
     QApplication, QAction, QMessageBox, QDialog, QVBoxLayout, 
     QLabel, QSlider, QPushButton, QWidget, QDockWidget
 )
-from PyQt5.QtCore import QObject, QTimer, QSettings, Qt, QEvent, QMutex, QMutexLocker
-from PyQt5.QtGui import QIcon
+from qgis.PyQt.QtCore import QObject, QTimer, QSettings, Qt, QEvent, QMutex, QMutexLocker
+from qgis.PyQt.QtGui import QIcon
 
 # QGIS imports
 from qgis.utils import iface
@@ -54,7 +54,7 @@ class SpaceMousePlugin(QObject):
         self.process_manager = ProcessManager(self.executable_path)
         
         self.active_window = None
-        self._log_message(f"Plugin initialized on {self.platform}", Qgis.Info)
+        self._log_message(f"Plugin initialized on {self.platform}", Qgis.MessageLevel.Info)
 
         # Only stop the service on Windows as it might interfere
         if self.platform == 'windows':
@@ -65,7 +65,7 @@ class SpaceMousePlugin(QObject):
             from qgis.gui import QgsGui
             QApplication.instance().focusChanged.connect(self._on_focus_changed)
         except Exception as e:
-            self._log_message(f"Could not connect to focus change signal: {str(e)}", Qgis.Warning)
+            self._log_message(f"Could not connect to focus change signal: {str(e)}", Qgis.MessageLevel.Warning)
             
            
 
@@ -95,10 +95,11 @@ class SpaceMousePlugin(QObject):
         self.thread_mutex = QMutex()
 
         # Initialize settings with default values
-        self.settings: Dict[str, float] = {
+        self.settings: Dict[str, Any] = {
             key: SettingsConfig.get_default_value(key) 
             for key in SettingsConfig.DEFAULTS.keys()
         }
+        self.settings.update(SettingsConfig.BOOLEAN_DEFAULTS)
 
         # Get thresholds
         self.THRESHOLDS = SettingsConfig.get_default_thresholds()
@@ -118,9 +119,9 @@ class SpaceMousePlugin(QObject):
         """Setup event filter for the main window."""
         try:
             self.iface.mainWindow().installEventFilter(self)
-            self._log_message("Event filter installed successfully", Qgis.Info)
+            self._log_message("Event filter installed successfully", Qgis.MessageLevel.Info)
         except Exception as e:
-            self._log_message(f"Error setting up event filter: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error setting up event filter: {str(e)}", Qgis.MessageLevel.Critical)
 
     def _load_settings(self) -> None:
         """Load plugin settings from QGIS settings."""
@@ -135,19 +136,22 @@ class SpaceMousePlugin(QObject):
                 # Validate value is within bounds
                 value = max(min_val, min(max_val, value))
                 self.settings[key] = value
+            for key, default in SettingsConfig.BOOLEAN_DEFAULTS.items():
+                self.settings[key] = settings.value(key, default, type=bool)
 
             settings.endGroup()
             
             # Update instance variables with loaded settings
             self._update_instance_settings()
             
-            self._log_message("Settings loaded successfully", Qgis.Info)
+            self._log_message("Settings loaded successfully", Qgis.MessageLevel.Info)
 
         except Exception as e:
-            self._log_message(f"Error loading settings: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error loading settings: {str(e)}", Qgis.MessageLevel.Critical)
             # Fallback to defaults
             self.settings = {key: default for key, (default, *_) 
                             in SettingsConfig.DEFAULTS.items()}
+            self.settings.update(SettingsConfig.BOOLEAN_DEFAULTS)
             self._update_instance_settings()
 
     def _update_instance_settings(self) -> None:
@@ -171,9 +175,9 @@ class SpaceMousePlugin(QObject):
             if self.kalman_filter is not None:
                 self.kalman_filter.cleanup()
             self.kalman_filter = KalmanFilters(self.settings)
-            self._log_message("Kalman filters initialized successfully", Qgis.Info)
+            self._log_message("Kalman filters initialized successfully", Qgis.MessageLevel.Info)
         except Exception as e:
-            self._log_message(f"Error initializing Kalman filters: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error initializing Kalman filters: {str(e)}", Qgis.MessageLevel.Critical)
             self.kalman_filter = None
 
     # GUI Methods
@@ -193,10 +197,10 @@ class SpaceMousePlugin(QObject):
             
             # Install event filter
             self.iface.mainWindow().installEventFilter(self)
-            self._log_message("GUI initialized successfully", Qgis.Info)
+            self._log_message("GUI initialized successfully", Qgis.MessageLevel.Info)
             
         except Exception as e:
-            self._log_message(f"Error initializing GUI: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error initializing GUI: {str(e)}", Qgis.MessageLevel.Critical)
             raise
 
     def _create_actions(self) -> None:
@@ -205,7 +209,7 @@ class SpaceMousePlugin(QObject):
             self._create_dock_action()
             self._create_start_stop_actions()
         except Exception as e:
-            self._log_message(f"Error creating actions: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error creating actions: {str(e)}", Qgis.MessageLevel.Critical)
             raise
 
     def _create_dock_action(self) -> None:
@@ -214,19 +218,19 @@ class SpaceMousePlugin(QObject):
             # Utiliser le sous-répertoire "icons"
             plugin_dir = os.path.dirname(os.path.abspath(__file__))
             icon_path = os.path.join(plugin_dir, "icons", "settings_icon.png")
-            self._log_message(f"Looking for settings icon at: {icon_path}", Qgis.Info)
+            self._log_message(f"Looking for settings icon at: {icon_path}", Qgis.MessageLevel.Info)
 
             if os.path.exists(icon_path):
                 self.dock_action = QAction(QIcon(icon_path), "Settings", self.iface.mainWindow())
             else:
-                self._log_message(f"Icon file not found at: {icon_path}", Qgis.Warning)
+                self._log_message(f"Icon file not found at: {icon_path}", Qgis.MessageLevel.Warning)
                 self.dock_action = QAction("Settings", self.iface.mainWindow())
                 
             self.dock_action.setCheckable(True)
             self.dock_action.triggered.connect(self.toggle_settings_dock)
             self.dock_action.setEnabled(True)
         except Exception as e:
-            self._log_message(f"Error creating dock action: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error creating dock action: {str(e)}", Qgis.MessageLevel.Critical)
             raise
 
     def _create_start_stop_actions(self) -> None:
@@ -237,7 +241,7 @@ class SpaceMousePlugin(QObject):
 
             # Create start action with icon
             start_icon_path = os.path.normpath(os.path.join(plugin_dir, "icons", "start_icon.png"))
-            self._log_message(f"Looking for start icon at: {start_icon_path}", Qgis.Info)
+            self._log_message(f"Looking for start icon at: {start_icon_path}", Qgis.MessageLevel.Info)
             
             self._actions['start'] = QAction(
                 QIcon(start_icon_path) if os.path.exists(start_icon_path) else QIcon(),
@@ -249,7 +253,7 @@ class SpaceMousePlugin(QObject):
 
             # Create stop action with icon
             stop_icon_path = os.path.normpath(os.path.join(plugin_dir, "icons", "stop_icon.png"))
-            self._log_message(f"Looking for stop icon at: {stop_icon_path}", Qgis.Info)
+            self._log_message(f"Looking for stop icon at: {stop_icon_path}", Qgis.MessageLevel.Info)
             self._actions['stop'] = QAction(
                 QIcon(stop_icon_path) if os.path.exists(stop_icon_path) else QIcon(),
                 "Stop", 
@@ -258,7 +262,7 @@ class SpaceMousePlugin(QObject):
             self._actions['stop'].triggered.connect(self.stop_spacemouse)
             self._actions['stop'].setEnabled(False)
         except Exception as e:
-            self._log_message(f"Error creating start/stop actions: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error creating start/stop actions: {str(e)}", Qgis.MessageLevel.Critical)
             raise
 
     def _add_actions_to_menu(self) -> None:
@@ -270,9 +274,9 @@ class SpaceMousePlugin(QObject):
                     try:
                         self.iface.addPluginToMenu(Config.MENU_NAME, action)
                     except Exception as e:
-                        self._log_message(f"Error adding action to menu: {str(e)}", Qgis.Warning)
+                        self._log_message(f"Error adding action to menu: {str(e)}", Qgis.MessageLevel.Warning)
         except Exception as e:
-            self._log_message(f"Error adding actions to menu: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error adding actions to menu: {str(e)}", Qgis.MessageLevel.Critical)
 
     def toggle_settings_dock(self, checked: bool) -> None:
         """
@@ -291,7 +295,7 @@ class SpaceMousePlugin(QObject):
                 if hasattr(self, '_on_dock_destroyed'):
                     self.settings_dock.destroyed.connect(self._on_dock_destroyed)
                     
-                self.iface.addDockWidget(Qt.RightDockWidgetArea, self.settings_dock)
+                self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.settings_dock)
                 
                 # Update with current settings
                 self.settings_dock.update_values(self.settings)
@@ -302,7 +306,7 @@ class SpaceMousePlugin(QObject):
             else:
                 self.settings_dock.hide()
         except Exception as e:
-            self._log_message(f"Error toggling settings dock: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error toggling settings dock: {str(e)}", Qgis.MessageLevel.Critical)
             # Show error to user
             QMessageBox.warning(
                 self.iface.mainWindow(),
@@ -310,7 +314,7 @@ class SpaceMousePlugin(QObject):
                 f"Error opening settings: {str(e)}"
             )
 
-    def _on_settings_applied(self, new_values: Dict[str, float]) -> None:
+    def _on_settings_applied(self, new_values: Dict[str, Any]) -> None:
         """
         Handle settings applied from dock.
 
@@ -341,9 +345,9 @@ class SpaceMousePlugin(QObject):
             # Update components with new settings
             self._update_components_with_settings()
 
-            self._log_message("Settings applied successfully", Qgis.Info)
+            self._log_message("Settings applied successfully", Qgis.MessageLevel.Info)
         except Exception as e:
-            self._log_message(f"Error applying settings: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error applying settings: {str(e)}", Qgis.MessageLevel.Critical)
             
     def _update_components_with_settings(self) -> None:
         """Update all components with new settings."""
@@ -358,10 +362,11 @@ class SpaceMousePlugin(QObject):
                     self.camera_controller.update_settings({
                         'move_factor': self.settings['move_factor'],
                         'rotation_factor': self.settings['rotation_factor'],
-                        'zoom_factor': self.settings['zoom_factor']
+                        'zoom_factor': self.settings['zoom_factor'],
+                        'reverse_zoom_direction': self.settings['reverse_zoom_direction']
                     })
                 except Exception as e:
-                    self._log_message(f"Error updating legacy camera controller: {str(e)}", Qgis.Warning)
+                    self._log_message(f"Error updating legacy camera controller: {str(e)}", Qgis.MessageLevel.Warning)
                     self.camera_controller = None
             
             # Update all camera controllers (nested dictionary)
@@ -374,19 +379,20 @@ class SpaceMousePlugin(QObject):
                             controller.update_settings({
                                 'move_factor': self.settings['move_factor'],
                                 'rotation_factor': self.settings['rotation_factor'],
-                                'zoom_factor': self.settings['zoom_factor']
+                                'zoom_factor': self.settings['zoom_factor'],
+                                'reverse_zoom_direction': self.settings['reverse_zoom_direction']
                             })
                         else:
                             invalid_entries.append((device_id, canvas_id))
                     except Exception as e:
-                        self._log_message(f"Error updating controller for device {device_id}, canvas {canvas_id}: {str(e)}", Qgis.Warning)
+                        self._log_message(f"Error updating controller for device {device_id}, canvas {canvas_id}: {str(e)}", Qgis.MessageLevel.Warning)
                         invalid_entries.append((device_id, canvas_id))
             
             # Clean up invalid controllers
             for device_id, canvas_id in invalid_entries:
                 if device_id in self.camera_controllers and canvas_id in self.camera_controllers[device_id]:
                     del self.camera_controllers[device_id][canvas_id]
-                    self._log_message(f"Removed invalid controller for device {device_id}, canvas {canvas_id}", Qgis.Info)
+                    self._log_message(f"Removed invalid controller for device {device_id}, canvas {canvas_id}", Qgis.MessageLevel.Info)
 
             # Update thread settings for all threads
             for thread in self.spacemouse_threads.values():
@@ -395,55 +401,55 @@ class SpaceMousePlugin(QObject):
                         update_interval=self.settings['update_interval']
                     )
 
-            self._log_message("Components updated with new settings", Qgis.Info)
+            self._log_message("Components updated with new settings", Qgis.MessageLevel.Info)
         except Exception as e:
-            self._log_message(f"Error updating components with settings: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error updating components with settings: {str(e)}", Qgis.MessageLevel.Critical)
 
     # Event Handling Methods
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         """
         Filtrer les événements pour détecter les changements de focus et les clics de souris.
         """
-        if event.type() == QEvent.WindowActivate:
-            self._log_message(f"Événement WindowActivate détecté sur l'objet : {obj}", Qgis.Info)
+        if event.type() == QEvent.Type.WindowActivate:
+            self._log_message(f"Événement WindowActivate détecté sur l'objet : {obj}", Qgis.MessageLevel.Info)
             QTimer.singleShot(100, lambda: self._handle_window_activate(obj))
 
-        elif event.type() == QEvent.FocusIn:
-            self._log_message(f"Événement FocusIn détecté sur l'objet : {obj}", Qgis.Info)
+        elif event.type() == QEvent.Type.FocusIn:
+            self._log_message(f"Événement FocusIn détecté sur l'objet : {obj}", Qgis.MessageLevel.Info)
             if isinstance(obj, Qgs3DMapCanvas):
-                self._log_message(f"Focus acquis sur le canvas 3D (ID : {id(obj)})", Qgis.Info)
+                self._log_message(f"Focus acquis sur le canvas 3D (ID : {id(obj)})", Qgis.MessageLevel.Info)
                 self._update_active_canvas(id(obj))
             else:
-                self._log_message("Focus acquis sur un objet non-canvas 3D", Qgis.Info)
+                self._log_message("Focus acquis sur un objet non-canvas 3D", Qgis.MessageLevel.Info)
                 self._update_active_canvas(None)
 
-        elif event.type() == QEvent.FocusOut:
-            self._log_message(f"Événement FocusOut détecté sur l'objet : {obj}", Qgis.Info)
+        elif event.type() == QEvent.Type.FocusOut:
+            self._log_message(f"Événement FocusOut détecté sur l'objet : {obj}", Qgis.MessageLevel.Info)
             if isinstance(obj, Qgs3DMapCanvas):
-                self._log_message(f"Focus perdu sur le canvas 3D (ID : {id(obj)})", Qgis.Info)
+                self._log_message(f"Focus perdu sur le canvas 3D (ID : {id(obj)})", Qgis.MessageLevel.Info)
             else:
-                self._log_message("Focus perdu sur un objet non-canvas 3D", Qgis.Info)
+                self._log_message("Focus perdu sur un objet non-canvas 3D", Qgis.MessageLevel.Info)
 
-        elif event.type() == QEvent.MouseButtonPress:
-            self._log_message(f"Événement MouseButtonPress détecté sur l'objet : {obj}", Qgis.Info)
+        elif event.type() == QEvent.Type.MouseButtonPress:
+            self._log_message(f"Événement MouseButtonPress détecté sur l'objet : {obj}", Qgis.MessageLevel.Info)
             if isinstance(obj, Qgs3DMapCanvas):
                 self._update_active_canvas(id(obj))
-                self._log_message(f"Bouton de souris pressé sur le canvas 3D (ID : {id(obj)})", Qgis.Info)
+                self._log_message(f"Bouton de souris pressé sur le canvas 3D (ID : {id(obj)})", Qgis.MessageLevel.Info)
             else:
-                self._log_message("Bouton de souris pressé sur un objet non-canvas 3D", Qgis.Info)
+                self._log_message("Bouton de souris pressé sur un objet non-canvas 3D", Qgis.MessageLevel.Info)
 
         return False  # Laisser l'événement se propager
     
     def _handle_window_activate(self, obj):
         """Handle window activation with a slight delay."""
         if isinstance(obj, Qgs3DMapCanvas):
-            self._log_message(f"Window activated for 3D canvas (ID: {id(obj)})", Qgis.Info)
+            self._log_message(f"Window activated for 3D canvas (ID: {id(obj)})", Qgis.MessageLevel.Info)
             self._update_active_canvas(id(obj))
             self.check_active_canvas()
 
     def _on_focus_changed(self, old, new):
         """Gérer les changements de focus entre différentes fenêtres et widgets."""
-        self._log_message(f"Focus changé de {old} à {new}", Qgis.Info)
+        self._log_message(f"Focus changé de {old} à {new}", Qgis.MessageLevel.Info)
         
         # Vérifier si le nouveau focus est directement un canvas 3D
         if isinstance(new, Qgs3DMapCanvas):
@@ -473,19 +479,19 @@ class SpaceMousePlugin(QObject):
         Args:
             canvas_id: The ID of the canvas to set as active, or None if no canvas should be active.
         """
-        self._log_message(f"Updating active canvas to ID: {canvas_id}", Qgis.Info)
+        self._log_message(f"Updating active canvas to ID: {canvas_id}", Qgis.MessageLevel.Info)
         if canvas_id != self.active_canvas_id:
             self.active_canvas_id = canvas_id
             if canvas_id is not None and canvas_id in self.canvases_3d:
                 self.canvas_3d = self.canvases_3d[canvas_id]
-                self._log_message(f"Active 3D canvas updated to ID: {canvas_id}", Qgis.Info)
+                self._log_message(f"Active 3D canvas updated to ID: {canvas_id}", Qgis.MessageLevel.Info)
             else:
                 self.canvas_3d = None
-                self._log_message("No active 3D canvas", Qgis.Info)
+                self._log_message("No active 3D canvas", Qgis.MessageLevel.Info)
             
             # Update SpaceMouse threads with new active canvas
             for thread in self.spacemouse_threads.values():
-                self._log_message(f"Updating SpaceMouse thread for device {thread.device_id} with new active canvas", Qgis.Info)
+                self._log_message(f"Updating SpaceMouse thread for device {thread.device_id} with new active canvas", Qgis.MessageLevel.Info)
                 thread.update_active_canvas(self.canvas_3d)
             
             # Update camera controllers
@@ -497,7 +503,7 @@ class SpaceMousePlugin(QObject):
 
     def _update_camera_controllers(self, new_active_canvas_id):
         """Update camera controllers for the new active canvas."""
-        self._log_message(f"Updating camera controllers for new active canvas ID: {new_active_canvas_id}", Qgis.Info)
+        self._log_message(f"Updating camera controllers for new active canvas ID: {new_active_canvas_id}", Qgis.MessageLevel.Info)
         if new_active_canvas_id is not None:
             for device_id in self.active_devices:
                 if device_id not in self.camera_controllers:
@@ -511,13 +517,14 @@ class SpaceMousePlugin(QObject):
                             settings={
                                 'move_factor': self.settings['move_factor'],
                                 'rotation_factor': self.settings['rotation_factor'],
-                                'zoom_factor': self.settings['zoom_factor']
+                                'zoom_factor': self.settings['zoom_factor'],
+                                'reverse_zoom_direction': self.settings['reverse_zoom_direction']
                             },
                             thresholds=self.THRESHOLDS
                         )
-                        self._log_message(f"Camera controller initialized for device {device_id}, canvas {new_active_canvas_id}", Qgis.Info)
+                        self._log_message(f"Camera controller initialized for device {device_id}, canvas {new_active_canvas_id}", Qgis.MessageLevel.Info)
                 else:
-                    self._log_message(f"Camera controller already exists for device {device_id}, canvas {new_active_canvas_id}", Qgis.Info)
+                    self._log_message(f"Camera controller already exists for device {device_id}, canvas {new_active_canvas_id}", Qgis.MessageLevel.Info)
 
     def _check_for_new_3d_views(self):
         """Vérifie la présence de vues 3D dans la fenêtre principale."""
@@ -531,9 +538,9 @@ class SpaceMousePlugin(QObject):
             QTimer.singleShot(1000, self._perform_canvas_check)
             
         except Exception as e:
-            self._log_message(f"Erreur lors de la vérification des vues 3D: {str(e)}", Qgis.Critical)
+            self._log_message(f"Erreur lors de la vérification des vues 3D: {str(e)}", Qgis.MessageLevel.Critical)
             import traceback
-            self._log_message(f"Traceback: {traceback.format_exc()}", Qgis.Critical)
+            self._log_message(f"Traceback: {traceback.format_exc()}", Qgis.MessageLevel.Critical)
         finally:
             self.is_checking = False
 
@@ -565,18 +572,18 @@ class SpaceMousePlugin(QObject):
                         if self.settings.get('auto_start', True):
                             QTimer.singleShot(100, self.start_spacemouse)
                     
-                    self._log_message(f"Nouveau canvas 3D détecté (ID: {canvas_id})", Qgis.Info)
+                    self._log_message(f"Nouveau canvas 3D détecté (ID: {canvas_id})", Qgis.MessageLevel.Info)
             
             if not self.canvases_3d and self.is_operational:
-                self._log_message("Aucun canvas 3D disponible, arrêt du SpaceMouse", Qgis.Info)
+                self._log_message("Aucun canvas 3D disponible, arrêt du SpaceMouse", Qgis.MessageLevel.Info)
                 self.stop_spacemouse()
             
             self.check_active_canvas()
             
         except Exception as e:
-            self._log_message(f"Erreur lors de la vérification des vues 3D: {str(e)}", Qgis.Critical)
+            self._log_message(f"Erreur lors de la vérification des vues 3D: {str(e)}", Qgis.MessageLevel.Critical)
             import traceback
-            self._log_message(f"Traceback: {traceback.format_exc()}", Qgis.Critical)
+            self._log_message(f"Traceback: {traceback.format_exc()}", Qgis.MessageLevel.Critical)
         
             
     def check_active_canvas(self):
@@ -593,16 +600,16 @@ class SpaceMousePlugin(QObject):
         visible_layers = [layer for layer in layers if layer.isVisible()]
 
         if active_canvas and visible_layers:
-            self._log_message(f"La vue 3D active est : ID {id(active_canvas)} avec {len(visible_layers)} couches visibles.", Qgis.Info)
+            self._log_message(f"La vue 3D active est : ID {id(active_canvas)} avec {len(visible_layers)} couches visibles.", Qgis.MessageLevel.Info)
             
             # Si le SpaceMouse n'est pas opérationnel, le démarrer
             if not self.is_operational:
                 QTimer.singleShot(50, self.start_spacemouse)
         else:
             if not active_canvas:
-                self._log_message("Aucune vue 3D active détectée.", Qgis.Info)
+                self._log_message("Aucune vue 3D active détectée.", Qgis.MessageLevel.Info)
             if not visible_layers:
-                self._log_message("Aucune couche visible dans le projet.", Qgis.Info)
+                self._log_message("Aucune couche visible dans le projet.", Qgis.MessageLevel.Info)
             
             # Si le SpaceMouse est opérationnel mais qu'il n'y a pas de vue 3D active ou de couches visibles, l'arrêter
             if self.is_operational:
@@ -631,7 +638,7 @@ class SpaceMousePlugin(QObject):
                             controller.cleanup()
                         del self.camera_controllers[device_id][canvas_id]
                 
-                self._log_message(f"3D canvas {canvas_id} closed and resources cleaned up", Qgis.Info)
+                self._log_message(f"3D canvas {canvas_id} closed and resources cleaned up", Qgis.MessageLevel.Info)
                 
             # If no more canvases, clean up everything
             if not self.canvases_3d:
@@ -646,17 +653,17 @@ class SpaceMousePlugin(QObject):
                 # Restart the check timer to look for new 3D views
                 if hasattr(self, 'check_timer') and not self.check_timer.isActive():
                     self.check_timer.start(1000)
-                    self._log_message("Restarted 3D view detection", Qgis.Info)
+                    self._log_message("Restarted 3D view detection", Qgis.MessageLevel.Info)
             else:
                 # Set another canvas as active if available
                 if self.canvases_3d:
                     next_id = next(iter(self.canvases_3d))
                     self.active_canvas_id = next_id
                     self.canvas_3d = self.canvases_3d[next_id]
-                    self._log_message(f"Switched active 3D canvas to {next_id}", Qgis.Info)
+                    self._log_message(f"Switched active 3D canvas to {next_id}", Qgis.MessageLevel.Info)
                     
         except Exception as e:
-            self._log_message(f"Error in on_3d_canvas_closed: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error in on_3d_canvas_closed: {str(e)}", Qgis.MessageLevel.Critical)
 
     # Cleanup Methods
     def unload(self) -> None:
@@ -678,17 +685,17 @@ class SpaceMousePlugin(QObject):
             elif self.platform == 'macos' or self.platform == 'linux':
                 # On macOS and Linux, we don't need to restart the service
                 # as it's typically managed by the system
-                self._log_message(f"No need to restart service on {self.platform}", Qgis.Info)
+                self._log_message(f"No need to restart service on {self.platform}", Qgis.MessageLevel.Info)
 
             # Remove event filter
             try:
                 self.iface.mainWindow().removeEventFilter(self)
             except Exception as e:
-                self._log_message(f"Error removing event filter: {str(e)}", Qgis.Warning)
+                self._log_message(f"Error removing event filter: {str(e)}", Qgis.MessageLevel.Warning)
 
-            self._log_message(f"SpaceMouse plugin unloaded successfully on {self.platform}.", Qgis.Info)
+            self._log_message(f"SpaceMouse plugin unloaded successfully on {self.platform}.", Qgis.MessageLevel.Info)
         except Exception as e:
-            self._log_message(f"Error during plugin unload: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error during plugin unload: {str(e)}", Qgis.MessageLevel.Critical)
 
     def _cleanup_settings_dock(self) -> None:
         """Cleanup settings dock."""
@@ -704,7 +711,7 @@ class SpaceMousePlugin(QObject):
                 self.settings_dock.deleteLater()
                 self.settings_dock = None
             except Exception as e:
-                self._log_message(f"Error cleaning up settings dock: {str(e)}", Qgis.Warning)
+                self._log_message(f"Error cleaning up settings dock: {str(e)}", Qgis.MessageLevel.Warning)
 
     def _cleanup_menu_items(self) -> None:
         """Remove menu items."""
@@ -716,10 +723,10 @@ class SpaceMousePlugin(QObject):
                         self.iface.removePluginMenu(Config.MENU_NAME, action)
                         action.deleteLater()
                     except Exception as e:
-                        self._log_message(f"Error removing menu item: {str(e)}", Qgis.Warning)
+                        self._log_message(f"Error removing menu item: {str(e)}", Qgis.MessageLevel.Warning)
             self._actions.clear()
         except Exception as e:
-            self._log_message(f"Error cleaning up menu items: {str(e)}", Qgis.Warning)
+            self._log_message(f"Error cleaning up menu items: {str(e)}", Qgis.MessageLevel.Warning)
 
     def _cleanup_references(self) -> None:
         """Clear object references."""
@@ -755,9 +762,9 @@ class SpaceMousePlugin(QObject):
             # Clear device states
             self.device_states.clear()
 
-            self._log_message("References cleaned up", Qgis.Info)
+            self._log_message("References cleaned up", Qgis.MessageLevel.Info)
         except Exception as e:
-            self._log_message(f"Error cleaning up references: {str(e)}", Qgis.Warning)
+            self._log_message(f"Error cleaning up references: {str(e)}", Qgis.MessageLevel.Warning)
 
     # Utility Methods
     def _detect_platform(self) -> str:
@@ -774,7 +781,7 @@ class SpaceMousePlugin(QObject):
         elif sys.platform.startswith('linux'):
             return 'linux'
         else:
-            self._log_message(f"Unknown platform: {sys.platform}, defaulting to linux", Qgis.Warning)
+            self._log_message(f"Unknown platform: {sys.platform}, defaulting to linux", Qgis.MessageLevel.Warning)
             return 'linux'
 
     def _get_platform_executable_path(self) -> str:
@@ -801,7 +808,7 @@ class SpaceMousePlugin(QObject):
             return ""  # Return empty string if not found
         return 
 
-    def _log_message(self, message: str, level: Qgis.MessageLevel = Qgis.Info) -> None:
+    def _log_message(self, message: str, level: Qgis.MessageLevel = Qgis.MessageLevel.Info) -> None:
         """
         Thread-safe logging with level control.
 
@@ -828,14 +835,14 @@ class SpaceMousePlugin(QObject):
                 self._actions['start'].setEnabled(start_enabled)
                 self._actions['stop'].setEnabled(not start_enabled)
             else:
-                self._log_message("Start or stop action not found in self._actions", Qgis.Warning)
+                self._log_message("Start or stop action not found in self._actions", Qgis.MessageLevel.Warning)
         except Exception as e:
-            self._log_message(f"Error updating action states: {str(e)}", Qgis.Warning)
+            self._log_message(f"Error updating action states: {str(e)}", Qgis.MessageLevel.Warning)
             
     # SpaceMouse Control Methods
     def start_spacemouse(self) -> None:
         """Start SpaceMouse operation."""
-        self._log_message("Attempting to start SpaceMouse...", Qgis.Info)
+        self._log_message("Attempting to start SpaceMouse...", Qgis.MessageLevel.Info)
 
         # Vérifier si des vues 3D sont disponibles
         if not self.canvases_3d:
@@ -843,7 +850,7 @@ class SpaceMousePlugin(QObject):
             self._check_for_new_3d_views()
             
             if not self.canvases_3d:
-                self._log_message("❌ No 3D View available.", Qgis.Critical)
+                self._log_message("❌ No 3D View available.", Qgis.MessageLevel.Critical)
                 QMessageBox.warning(
                     self.iface.mainWindow(),
                     "SpaceMouse Error",
@@ -857,18 +864,18 @@ class SpaceMousePlugin(QObject):
             devices_config = load_devices_from_config()
             
             if not devices_config:
-                self._log_message("❌ No SpaceMouse devices configured.", Qgis.Warning)
+                self._log_message("❌ No SpaceMouse devices configured.", Qgis.MessageLevel.Warning)
                 
                 # Demander à l'utilisateur s'il souhaite configurer un périphérique
                 reply = QMessageBox.question(
                     self.iface.mainWindow(),
                     "SpaceMouse Configuration",
                     "No SpaceMouse devices are configured. Would you like to configure a device now?",
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.Yes
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes
                 )
                 
-                if reply == QMessageBox.Yes:
+                if reply == QMessageBox.StandardButton.Yes:
                     # Afficher la boîte de dialogue de gestion des périphériques
                     self._show_manage_devices_dialog()
                     
@@ -889,11 +896,11 @@ class SpaceMousePlugin(QObject):
             if self._initialize_spacemouse_devices():
                 QTimer.singleShot(10, lambda: self._update_action_states(start_enabled=False))
                 self.is_operational = True
-                self._log_message("✅ SpaceMouse started successfully", Qgis.Info)
+                self._log_message("✅ SpaceMouse started successfully", Qgis.MessageLevel.Info)
             else:
                 self._update_action_states(start_enabled=True)
                 self.is_operational = False
-                self._log_message("❌ Failed to start SpaceMouse - no devices found", Qgis.Warning)
+                self._log_message("❌ Failed to start SpaceMouse - no devices found", Qgis.MessageLevel.Warning)
                 
                 # Proposer à l'utilisateur de configurer un nouveau périphérique
                 reply = QMessageBox.question(
@@ -901,18 +908,18 @@ class SpaceMousePlugin(QObject):
                     "SpaceMouse Error",
                     "No SpaceMouse devices were found. Your device might not be supported by default.\n\n"
                     "Would you like to configure a new device?",
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.Yes
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes
                 )
                 
-                if reply == QMessageBox.Yes:
+                if reply == QMessageBox.StandardButton.Yes:
                     # Afficher la boîte de dialogue de gestion des périphériques
                     self._show_manage_devices_dialog()
                     
                     # Tenter de redémarrer après la configuration
                     QTimer.singleShot(500, self.restart_spacemouse)
         except Exception as e:
-            self._log_message(f"Error starting SpaceMouse: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error starting SpaceMouse: {str(e)}", Qgis.MessageLevel.Critical)
             self._update_action_states(start_enabled=True)
             self.is_operational = False
 
@@ -920,12 +927,12 @@ class SpaceMousePlugin(QObject):
         """Stop specific or all SpaceMouse devices."""
         if device_id:
             self._cleanup_device(device_id)
-            self._log_message(f"✅ SpaceMouse {device_id} stopped.", Qgis.Info)
+            self._log_message(f"✅ SpaceMouse {device_id} stopped.", Qgis.MessageLevel.Info)
         else:
             self._cleanup_spacemouse_threads()
             self._update_action_states(start_enabled=True)
             self.is_operational = False
-            self._log_message("✅ All SpaceMouse devices stopped.", Qgis.Info)
+            self._log_message("✅ All SpaceMouse devices stopped.", Qgis.MessageLevel.Info)
 
     def update_camera(self, device_id: str, x: float, y: float, z: float,
                       roll: float, pitch: float, yaw: float) -> None:
@@ -951,7 +958,8 @@ class SpaceMousePlugin(QObject):
                     settings={
                         'move_factor': self.settings['move_factor'],
                         'rotation_factor': self.settings['rotation_factor'],
-                        'zoom_factor': self.settings['zoom_factor']
+                        'zoom_factor': self.settings['zoom_factor'],
+                        'reverse_zoom_direction': self.settings['reverse_zoom_direction']
                     },
                     thresholds=self.THRESHOLDS
                 )
@@ -966,7 +974,7 @@ class SpaceMousePlugin(QObject):
             controller.update_camera(filtered_values)
 
         except Exception as e:
-            self._log_message(f"Error in update_camera: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error in update_camera: {str(e)}", Qgis.MessageLevel.Critical)
 
     def _initialize_spacemouse_devices(self) -> bool:
         """Initialize all connected SpaceMouse devices."""
@@ -975,14 +983,14 @@ class SpaceMousePlugin(QObject):
             from .SMNewDevice import load_devices_from_config
             devices_config = load_devices_from_config()
             if not devices_config:
-                self._log_message("No devices configured in devices.json", Qgis.Warning)
+                self._log_message("No devices configured in devices.json", Qgis.MessageLevel.Warning)
                 return False
             
             # Scan for connected devices
             connected_devices = self._scan_for_devices()
             
             if not connected_devices:
-                self._log_message("No SpaceMouse devices found", Qgis.Warning)
+                self._log_message("No SpaceMouse devices found", Qgis.MessageLevel.Warning)
                 return False
 
             # Le reste de votre code existant...
@@ -1010,12 +1018,12 @@ class SpaceMousePlugin(QObject):
                     thread.start()
                     self.spacemouse_threads[device_id] = thread
                     self.active_devices.add(device_id)
-                    self._log_message(f"Started thread for device {device_id}: {device_info.get('name', 'Unknown')}", Qgis.Info)
+                    self._log_message(f"Started thread for device {device_id}: {device_info.get('name', 'Unknown')}", Qgis.MessageLevel.Info)
 
             return bool(self.spacemouse_threads)
 
         except Exception as e:
-            self._log_message(f"Error initializing devices: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error initializing devices: {str(e)}", Qgis.MessageLevel.Critical)
             return False
 
     def _scan_for_devices(self) -> Dict[str, Dict[str, str]]:
@@ -1036,7 +1044,7 @@ class SpaceMousePlugin(QObject):
             # Try to detect actual devices if possible
             try:
                 # First try with easyhid which works on Windows and some Linux distributions
-                self._log_message(f"Attempting to detect devices using easyhid on {self.platform}", Qgis.Info)
+                self._log_message(f"Attempting to detect devices using easyhid on {self.platform}", Qgis.MessageLevel.Info)
 
                 
                 enum = Enumeration()
@@ -1056,7 +1064,7 @@ class SpaceMousePlugin(QObject):
                             'platform': self.platform
  
                         }
-                    self._log_message(f"Found {len(devices)} devices using easyhid", Qgis.Info)
+                    self._log_message(f"Found {len(devices)} devices using easyhid", Qgis.MessageLevel.Info)
                     
                 # Platform-specific device detection
                 if self.platform == 'linux':
@@ -1064,15 +1072,15 @@ class SpaceMousePlugin(QObject):
                 elif self.platform == 'macos':
                     self._scan_macos_devices(connected_devices)
                 else:
-                    self._log_message("Using default device configuration", Qgis.Info)
+                    self._log_message("Using default device configuration", Qgis.MessageLevel.Info)
                     
             except ImportError:
-                self._log_message("easyhid not available, trying platform-specific methods", Qgis.Info)
+                self._log_message("easyhid not available, trying platform-specific methods", Qgis.MessageLevel.Info)
             except Exception as e:
-                self._log_message(f"Error enumerating devices: {str(e)}", Qgis.Warning)
+                self._log_message(f"Error enumerating devices: {str(e)}", Qgis.MessageLevel.Warning)
                 
         except Exception as e:
-            self._log_message(f"Error scanning for devices: {str(e)}", Qgis.Warning)
+            self._log_message(f"Error scanning for devices: {str(e)}", Qgis.MessageLevel.Warning)
             
         return connected_devices
         
@@ -1120,12 +1128,12 @@ class SpaceMousePlugin(QObject):
                                 'platform': 'linux'
                             }
 
-                self._log_message(f"Found {len(connected_devices)} devices using lsusb", Qgis.Info)
+                self._log_message(f"Found {len(connected_devices)} devices using lsusb", Qgis.MessageLevel.Info)
             else:
-                self._log_message("No 3Dconnexion devices found with lsusb", Qgis.Info)
+                self._log_message("No 3Dconnexion devices found with lsusb", Qgis.MessageLevel.Info)
 
         except Exception as e:
-            self._log_message(f"Error scanning Linux devices: {str(e)}", Qgis.Warning)
+            self._log_message(f"Error scanning Linux devices: {str(e)}", Qgis.MessageLevel.Warning)
 
     def _scan_macos_devices(self, connected_devices):
         """
@@ -1175,12 +1183,12 @@ class SpaceMousePlugin(QObject):
                                 'platform': 'macos'
                             }
 
-                self._log_message(f"Found {len(connected_devices)} devices using system_profiler", Qgis.Info)
+                self._log_message(f"Found {len(connected_devices)} devices using system_profiler", Qgis.MessageLevel.Info)
             else:
-                self._log_message("No 3Dconnexion devices found with system_profiler", Qgis.Info)
+                self._log_message("No 3Dconnexion devices found with system_profiler", Qgis.MessageLevel.Info)
 
         except Exception as e:
-            self._log_message(f"Error scanning macOS devices: {str(e)}", Qgis.Warning)
+            self._log_message(f"Error scanning macOS devices: {str(e)}", Qgis.MessageLevel.Warning)
 
     def _handle_connection_change(self, connected: bool, device_id: str) -> None:
         """
@@ -1191,10 +1199,10 @@ class SpaceMousePlugin(QObject):
             device_id: Unique identifier for the device
         """
         if connected:
-            self._log_message(f"Device {device_id} connected", Qgis.Info)
+            self._log_message(f"Device {device_id} connected", Qgis.MessageLevel.Info)
             self.active_devices.add(device_id)
         else:
-            self._log_message(f"Device {device_id} disconnected", Qgis.Warning)
+            self._log_message(f"Device {device_id} disconnected", Qgis.MessageLevel.Warning)
             self.active_devices.discard(device_id)
             
         # Update UI to reflect connection state
@@ -1208,7 +1216,7 @@ class SpaceMousePlugin(QObject):
             button_index: Index of the button that was pressed
         """
         # Log plus détaillé pour le débogage
-        self._log_message(f"Button {button_index} pressed on device {device_id}", Qgis.Info)
+        self._log_message(f"Button {button_index} pressed on device {device_id}", Qgis.MessageLevel.Info)
         
         # Ajouter un message dans l'interface QGIS pour une visibilité immédiate
         #if hasattr(self, 'iface') and self.iface:
@@ -1221,18 +1229,18 @@ class SpaceMousePlugin(QObject):
         
         # Vérifier tous les boutons possibles (0 à 5 pour couvrir la plupart des modèles)
         if button_index == 0:  # Généralement bouton gauche
-            self._log_message("Activating isometric view (Button 0)", Qgis.Info)
+            self._log_message("Activating isometric view (Button 0)", Qgis.MessageLevel.Info)
             self._set_isometric_view()
         elif button_index == 1:  # Généralement bouton droit
-            self._log_message("Activating top view (Button 1)", Qgis.Info)
+            self._log_message("Activating top view (Button 1)", Qgis.MessageLevel.Info)
             self._reset_to_top_view()
         # Ajouter des conditions pour d'autres boutons si votre SpaceMouse en a plus
         elif button_index == 2:
-            self._log_message("Button 2 pressed - no action assigned", Qgis.Info)
+            self._log_message("Button 2 pressed - no action assigned", Qgis.MessageLevel.Info)
         elif button_index == 3:
-            self._log_message("Button 3 pressed - no action assigned", Qgis.Info)
+            self._log_message("Button 3 pressed - no action assigned", Qgis.MessageLevel.Info)
         else:
-            self._log_message(f"Unhandled button index: {button_index}", Qgis.Info)
+            self._log_message(f"Unhandled button index: {button_index}", Qgis.MessageLevel.Info)
             
         # Vous pouvez également essayer de forcer l'exécution des deux fonctions
         # pour voir si l'une ou l'autre fonctionne
@@ -1242,14 +1250,14 @@ class SpaceMousePlugin(QObject):
             try:
                 if button_index == 1:
                     # Vérifier si la fonction est bien appelée
-                    self._log_message("Debug: Explicitly calling _reset_to_top_view()", Qgis.Info)
+                    self._log_message("Debug: Explicitly calling _reset_to_top_view()", Qgis.MessageLevel.Info)
             except Exception as e:
-                self._log_message(f"Error in button handler: {str(e)}", Qgis.Critical)
+                self._log_message(f"Error in button handler: {str(e)}", Qgis.MessageLevel.Critical)
 
     def _reset_to_top_view(self) -> None:
         """Reset the camera to top view using both resetView and setViewFromTop."""
         if not self.active_canvas_id or self.active_canvas_id not in self.canvases_3d:
-            self._log_message("No active 3D canvas to reset view", Qgis.Warning)
+            self._log_message("No active 3D canvas to reset view", Qgis.MessageLevel.Warning)
             return
             
         try:
@@ -1281,55 +1289,55 @@ class SpaceMousePlugin(QObject):
                             # Assurer une distance raisonnable
                             distance = max(10.0, min(distance, 1000.0))
                             
-                            self._log_message(f"Using scene extent: center ({center_x}, {center_y}), distance {distance}", Qgis.Info)
+                            self._log_message(f"Using scene extent: center ({center_x}, {center_y}), distance {distance}", Qgis.MessageLevel.Info)
                         else:
-                            self._log_message("Scene extent is not valid, using default values", Qgis.Warning)
+                            self._log_message("Scene extent is not valid, using default values", Qgis.MessageLevel.Warning)
                     else:
-                        self._log_message("Could not get scene extent, using default values", Qgis.Info)
+                        self._log_message("Could not get scene extent, using default values", Qgis.MessageLevel.Info)
                 except Exception as e:
-                    self._log_message(f"Error getting scene extent: {str(e)}, using default values", Qgis.Warning)
+                    self._log_message(f"Error getting scene extent: {str(e)}, using default values", Qgis.MessageLevel.Warning)
                 
                 # Étape 2: Utiliser resetView pour centrer la vue sur l'origine
                 try:
-                    self._log_message(f"Resetting view with distance: {distance}", Qgis.Info)
+                    self._log_message(f"Resetting view with distance: {distance}", Qgis.MessageLevel.Info)
                     navigation.resetView(distance)
                 except Exception as e:
-                    self._log_message(f"Error in resetView: {str(e)}", Qgis.Warning)
+                    self._log_message(f"Error in resetView: {str(e)}", Qgis.MessageLevel.Warning)
                 
                 # Étape 3: Si nous avons un centre valide, utiliser setViewFromTop pour centrer sur ce point
                 if center_x != 0.0 or center_y != 0.0:
                     try:
-                        self._log_message(f"Setting view from top at center ({center_x}, {center_y}) with distance {distance}", Qgis.Info)
+                        self._log_message(f"Setting view from top at center ({center_x}, {center_y}) with distance {distance}", Qgis.MessageLevel.Info)
                         navigation.setViewFromTop(center_x, center_y, distance)
                     except Exception as e:
-                        self._log_message(f"Error in setViewFromTop: {str(e)}", Qgis.Warning)
+                        self._log_message(f"Error in setViewFromTop: {str(e)}", Qgis.MessageLevel.Warning)
                 
                 # Étape 4: Vérifier et ajuster l'angle de tangage si nécessaire
                 try:
                     camera_pose = navigation.cameraPose()
                     if camera_pose:
                         current_pitch = camera_pose.pitchAngle()
-                        self._log_message(f"Current pitch angle: {current_pitch}", Qgis.Info)
+                        self._log_message(f"Current pitch angle: {current_pitch}", Qgis.MessageLevel.Info)
                         
                         # Si l'angle de tangage n'est pas déjà proche de -90 degrés, l'ajuster
                         if abs(current_pitch + 90.0) > 1.0:  # Si plus de 1 degré de différence
                             camera_pose.setPitchAngle(-89.0)  # -89 au lieu de -90 pour éviter le gimbal lock
                             navigation.setCameraPose(camera_pose)
-                            self._log_message("Adjusted pitch angle to -89 degrees", Qgis.Info)
+                            self._log_message("Adjusted pitch angle to -89 degrees", Qgis.MessageLevel.Info)
                 except Exception as e:
-                    self._log_message(f"Error adjusting pitch angle: {str(e)}", Qgis.Warning)
+                    self._log_message(f"Error adjusting pitch angle: {str(e)}", Qgis.MessageLevel.Warning)
                 
-                self._log_message("Camera reset to top view", Qgis.Info)
+                self._log_message("Camera reset to top view", Qgis.MessageLevel.Info)
             else:
-                self._log_message("Failed to get navigation controller", Qgis.Warning)
+                self._log_message("Failed to get navigation controller", Qgis.MessageLevel.Warning)
                 
         except Exception as e:
-            self._log_message(f"Error resetting to top view: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error resetting to top view: {str(e)}", Qgis.MessageLevel.Critical)
 
     def _set_isometric_view(self) -> None:
         """Set the camera to an isometric view (45° angle)."""
         if not self.active_canvas_id or self.active_canvas_id not in self.canvases_3d:
-            self._log_message("No active 3D canvas to set isometric view", Qgis.Warning)
+            self._log_message("No active 3D canvas to set isometric view", Qgis.MessageLevel.Warning)
             return
             
         try:
@@ -1361,20 +1369,20 @@ class SpaceMousePlugin(QObject):
                             # Assurer une distance raisonnable
                             distance = max(10.0, min(distance, 1000.0))
                             
-                            self._log_message(f"Using scene extent for isometric view: center ({center_x}, {center_y}), distance {distance}", Qgis.Info)
+                            self._log_message(f"Using scene extent for isometric view: center ({center_x}, {center_y}), distance {distance}", Qgis.MessageLevel.Info)
                         else:
-                            self._log_message("Scene extent is not valid, using default values", Qgis.Warning)
+                            self._log_message("Scene extent is not valid, using default values", Qgis.MessageLevel.Warning)
                     else:
-                        self._log_message("Could not get scene extent, using default values", Qgis.Info)
+                        self._log_message("Could not get scene extent, using default values", Qgis.MessageLevel.Info)
                 except Exception as e:
-                    self._log_message(f"Error getting scene extent: {str(e)}, using default values", Qgis.Warning)
+                    self._log_message(f"Error getting scene extent: {str(e)}, using default values", Qgis.MessageLevel.Warning)
                 
                 # Étape 2: Utiliser resetView pour centrer la vue sur l'origine
                 try:
-                    self._log_message(f"Resetting view with distance: {distance}", Qgis.Info)
+                    self._log_message(f"Resetting view with distance: {distance}", Qgis.MessageLevel.Info)
                     navigation.resetView(distance)
                 except Exception as e:
-                    self._log_message(f"Error in resetView: {str(e)}", Qgis.Warning)
+                    self._log_message(f"Error in resetView: {str(e)}", Qgis.MessageLevel.Warning)
                 
                 # Étape 3: Si nous avons un centre valide, ajuster la position
                 if center_x != 0.0 or center_y != 0.0:
@@ -1386,9 +1394,9 @@ class SpaceMousePlugin(QObject):
                             # Définir le centre
                             camera_pose.setCenterPoint(QgsVector3D(center_x, center_y, 0))
                             navigation.setCameraPose(camera_pose)
-                            self._log_message(f"Adjusted center to ({center_x}, {center_y})", Qgis.Info)
+                            self._log_message(f"Adjusted center to ({center_x}, {center_y})", Qgis.MessageLevel.Info)
                     except Exception as e:
-                        self._log_message(f"Error adjusting center: {str(e)}", Qgis.Warning)
+                        self._log_message(f"Error adjusting center: {str(e)}", Qgis.MessageLevel.Warning)
                 
                 # Étape 4: Ajuster les angles pour la vue isométrique
                 try:
@@ -1403,17 +1411,17 @@ class SpaceMousePlugin(QObject):
                         # Appliquer la pose mise à jour
                         navigation.setCameraPose(camera_pose)
                         
-                        self._log_message("Camera set to isometric view", Qgis.Info)
+                        self._log_message("Camera set to isometric view", Qgis.MessageLevel.Info)
                     else:
-                        self._log_message("Failed to get camera pose", Qgis.Warning)
+                        self._log_message("Failed to get camera pose", Qgis.MessageLevel.Warning)
                 except Exception as e:
-                    self._log_message(f"Error setting isometric angles: {str(e)}", Qgis.Warning)
+                    self._log_message(f"Error setting isometric angles: {str(e)}", Qgis.MessageLevel.Warning)
                 
             else:
-                self._log_message("Failed to get navigation controller", Qgis.Warning)
+                self._log_message("Failed to get navigation controller", Qgis.MessageLevel.Warning)
                 
         except Exception as e:
-            self._log_message(f"Error setting isometric view: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error setting isometric view: {str(e)}", Qgis.MessageLevel.Critical)
         
     def _handle_thread_error(self, error_message: str, device_id: str) -> None:
         """
@@ -1423,7 +1431,7 @@ class SpaceMousePlugin(QObject):
             error_message: Error message from the thread
             device_id: Unique identifier for the device
         """
-        self._log_message(f"Thread error for device {device_id}: {error_message}", Qgis.Critical)
+        self._log_message(f"Thread error for device {device_id}: {error_message}", Qgis.MessageLevel.Critical)
         self._cleanup_device(device_id)
 
     def _cleanup_device(self, device_id: str) -> None:
@@ -1449,7 +1457,7 @@ class SpaceMousePlugin(QObject):
                     # Convert THREAD_STOP_TIMEOUT to int before passing to wait()
                     timeout = int(self.THREAD_STOP_TIMEOUT)
                     if not thread.wait(timeout):
-                        self._log_message(f"Thread stop timeout for device {device_id} - forcing termination", Qgis.Warning)
+                        self._log_message(f"Thread stop timeout for device {device_id} - forcing termination", Qgis.MessageLevel.Warning)
                         thread.terminate()
                         
                 del self.spacemouse_threads[device_id]
@@ -1488,7 +1496,8 @@ class SpaceMousePlugin(QObject):
                 settings={
                     'move_factor': self.settings['move_factor'],
                     'rotation_factor': self.settings['rotation_factor'],
-                    'zoom_factor': self.settings['zoom_factor']
+                    'zoom_factor': self.settings['zoom_factor'],
+                    'reverse_zoom_direction': self.settings['reverse_zoom_direction']
                 },
                 thresholds=self.THRESHOLDS
             )
@@ -1503,9 +1512,9 @@ class SpaceMousePlugin(QObject):
             canvas.focusInEvent = lambda event: self._handle_focus_change(canvas_id)
             canvas.focusOutEvent = lambda event: self._handle_focus_change(None)  # Handle focus out if needed
             
-            self._log_message(f"Camera controller initialized for canvas {canvas_id}", Qgis.Info)
+            self._log_message(f"Camera controller initialized for canvas {canvas_id}", Qgis.MessageLevel.Info)
         except Exception as e:
-            self._log_message(f"Error initializing camera controller: {str(e)}", Qgis.Critical)
+            self._log_message(f"Error initializing camera controller: {str(e)}", Qgis.MessageLevel.Critical)
 
     def _handle_focus_change(self, canvas_id: int) -> None:
         """
@@ -1517,7 +1526,7 @@ class SpaceMousePlugin(QObject):
         if canvas_id in self.canvases_3d:
             self.active_canvas_id = canvas_id
             self.canvas_3d = self.canvases_3d[canvas_id]
-            self._log_message(f"Switched active 3D canvas to {canvas_id}", Qgis.Info)
+            self._log_message(f"Switched active 3D canvas to {canvas_id}", Qgis.MessageLevel.Info)
             
             # Update camera controllers for all devices
             for device_id in self.active_devices:
@@ -1526,18 +1535,19 @@ class SpaceMousePlugin(QObject):
                 
                 # If the controller does not exist for the active canvas, initialize it
                 if canvas_id not in self.camera_controllers[device_id]:
-                    self._log_message(f"Initializing camera controller for device {device_id}, canvas {canvas_id}", Qgis.Info)
+                    self._log_message(f"Initializing camera controller for device {device_id}, canvas {canvas_id}", Qgis.MessageLevel.Info)
                     self.camera_controllers[device_id][canvas_id] = CameraController(
                         canvas_3d=self.canvas_3d,
                         settings={
                             'move_factor': self.settings['move_factor'],
                             'rotation_factor': self.settings['rotation_factor'],
-                            'zoom_factor': self.settings['zoom_factor']
+                            'zoom_factor': self.settings['zoom_factor'],
+                            'reverse_zoom_direction': self.settings['reverse_zoom_direction']
                         },
                         thresholds=self.THRESHOLDS
                     )
                 else:
-                    self._log_message(f"Camera controller already exists for device {device_id}, canvas {canvas_id}", Qgis.Info)
+                    self._log_message(f"Camera controller already exists for device {device_id}, canvas {canvas_id}", Qgis.MessageLevel.Info)
             
             # Update action states
             self._update_action_states(start_enabled=True)

@@ -1,6 +1,7 @@
 # Core dependencies
 numpy>=1.20.0
 easyhid>=0.0.9
-pywinusb==0.4.2
-PyQt5>=5.15.0
+filterpy
+psutil
+pywinusb==0.4.2; sys_platform == "win32"
 

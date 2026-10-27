@@ -35,10 +35,12 @@ This plugin temporarily stops the 3DConnexion service while running to avoid con
 [Other HID-compatible models]
 
 ### Software
-- QGIS 3.0 or later
+- QGIS 4.0 or later (Qt 6). Version 1.x supports QGIS 3
 - Python packages (automatically installed):
   * numpy >= 1.20.0
   * easyhid >= 0.0.9 (for device detection)
+  * filterpy (Kalman filtering)
+  * psutil
   * pywinusb (for HID communication on Windows)
 
  
@@ -56,7 +58,8 @@ This plugin temporarily stops the 3DConnexion service while running to avoid con
 ### Method 2: Manual Installation
 1. Download SpaceMouse3Dconnexion.zip
 2. Extract to your QGIS plugins directory:
-	- Windows: %APPDATA%\QGIS\QGIS3\profiles\default\python\plugins
+	- Windows: %APPDATA%\QGIS\QGIS4\profiles\default\python\plugins
+	- Linux: ~/.local/share/QGIS/QGIS4/profiles/default/python/plugins
 3. Restart QGIS
 
 ### Configuration
